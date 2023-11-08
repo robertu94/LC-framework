@@ -100,9 +100,7 @@ cpucomps.sort()
 
 # update constants
 with open(args.output_dir + '/components/include/consts.h', 'w') as f:
-  f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [must be multiple of 8]\n")
-  f.write("static const int TPB = 512;  // threads per block [must be power of 2 and at least 128]\n")
-  f.write("static const int WS = 32;  // warp size [must match number of bits in an int]\n")
+  f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [do not change]\n")
 
 # update enum.h
 update_enum(args.output_dir + '/components/include/CPUcomponents.h', cpucomps, 'CPUcomponents')

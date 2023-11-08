@@ -32,7 +32,10 @@ add_custom_command(
     )
 
 add_executable(lc ${CMAKE_CURRENT_BINARY_DIR}/lc.cpp)
-target_include_directories(lc PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
+target_include_directories(lc PRIVATE 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/components>
+    )
 target_compile_definitions(lc PRIVATE USE_CPU)
 target_link_libraries(lc PRIVATE OpenMP::OpenMP_CXX)
 install(TARGETS lc)
