@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(LC VERSION 1.1.1)
+project(LC VERSION 1.1.2)
 
 #correct was to set a default build type
 # https://blog.kitware.com/cmake-and-the-default-build-type/
@@ -66,9 +66,10 @@ install(TARGETS lc EXPORT LCTargets
 
 option(LC_BUILD_LIBPRESSIO_PLUGIN "build support for calling LC from LibPressio" OFF)
 if(LC_BUILD_LIBPRESSIO_PLUGIN)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libpressio/)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libpressio/lc.cpp
-        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --base_file ./lc-libpressio-plugin.cpp --output_dir ${CMAKE_CURRENT_BINARY_DIR}/libpressio/ ${VERBOSE_FLAG}
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --base_file ${CMAKE_CURRENT_SOURCE_DIR}/lc-libpressio-plugin.cpp --output_dir ${CMAKE_CURRENT_BINARY_DIR}/libpressio/ ${VERBOSE_FLAG}
         DEPENDS ${LC_SOURCES} generate_Host_LC-Framework.py ./lc-libpressio-plugin.cpp
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )

@@ -454,6 +454,10 @@ public:
     set(options, "pressio:description", R"()");
     set(options, "lc:components", "list of components steps to use with LC");
     set(options, "lc:preprocessors", "list of preprocessors steps to use with LC");
+    set(options, "lc:preprocess_time", "preprocessing time in milliseconds");
+    set(options, "lc:encode_time", "encoding time in milliseconds");
+    set(options, "lc:preprocess_decode_time", "preprocessing decodeing time in milliseconds");
+    set(options, "lc:decode_time", "decoding time in milliseconds");
     return options;
   }
 
