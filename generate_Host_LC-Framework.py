@@ -50,10 +50,11 @@ import argparse
 parser = argparse.ArgumentParser("lc")
 parser.add_argument("--output_dir", default=".")
 parser.add_argument("--verbose", action="store_true")
+parser.add_argument("--base_file", default="framework.cu")
 args = parser.parse_args()
 
 # generate lc framework
-shutil.copyfile('framework.cu', args.output_dir + "/lc.cpp")
+shutil.copyfile(args.base_file, args.output_dir + "/lc.cpp")
 for i in ["/components/include", "/preprocessors/include", "/verifiers/include"]:
     os.makedirs(args.output_dir + i, exist_ok=True)
 

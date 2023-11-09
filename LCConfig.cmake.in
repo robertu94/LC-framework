@@ -1,0 +1,11 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/LCTargets.cmake")
+find_package(OpenMP REQUIRED)
+find_package(Python REQUIRED)
+
+if(@LC_BUILD_LIBPRESSIO_PLUGIN@)
+    find_package(std_compat REQUIRED)
+    find_package(LibPressio REQUIRED)
+endif()
+check_required_components(LC)
