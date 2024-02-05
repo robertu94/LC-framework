@@ -143,7 +143,7 @@ file = args.output_dir + "/lc.cpp"
 # update switch host encode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-encode-beg##[\s\S]*##switch-host-encode-end##", contents)
+  m = re.search(r"##switch-host-encode-beg##[\s\S]*##switch-host-encode-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -156,7 +156,7 @@ with open(file, "r+") as f:
 # update switch host decode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-decode-beg##[\s\S]*##switch-host-decode-end##", contents)
+  m = re.search(r"##switch-host-decode-beg##[\s\S]*##switch-host-decode-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -169,7 +169,7 @@ with open(file, "r+") as f:
 # update switch pipeline
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-pipeline-beg##[\s\S]*##switch-pipeline-end##", contents)
+  m = re.search(r"##switch-pipeline-beg##[\s\S]*##switch-pipeline-end##", contents)
   str_to_add = ''
   for c in cpucomps:
     c = c[2:]
@@ -182,7 +182,7 @@ with open(file, "r+") as f:
 #update switch verify
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
+  m = re.search(r"##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
   str_to_add = ''
   for c in cpuverifier:
     c = c[2:]
@@ -195,7 +195,7 @@ with open(file, "r+") as f:
 #update switch host preprocess encode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-preprocess-encode-beg##[\s\S]*##switch-host-preprocess-encode-end##", contents)
+  m = re.search(r"##switch-host-preprocess-encode-beg##[\s\S]*##switch-host-preprocess-encode-end##", contents)
   str_to_add = ''
   for c in cpupreprocess:
     c = c[2:]
@@ -221,7 +221,7 @@ with open(file, "r+") as f:
 # update enum map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##component-map-beg##[\s\S]*##component-map-end##", contents)
+    m = re.search(r"##component-map-beg##[\s\S]*##component-map-end##", contents)
     str_to_add = ''
     i = 0
     for c in cpucomps:
@@ -237,7 +237,7 @@ with open(file, "r+") as f:
 # update preprocessor map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##preprocessor-map-beg##[\s\S]*##preprocessor-map-end##", contents)
+    m = re.search(r"##preprocessor-map-beg##[\s\S]*##preprocessor-map-end##", contents)
     str_to_add = ''
     for c in cpupreprocess:
         c = c[2:]
@@ -250,7 +250,7 @@ with open(file, "r+") as f:
 # update verifier map
 with open(file, "r+") as f:
     contents = f.read()
-    m = re.search("##verifier-map-beg##[\s\S]*##verifier-map-end##", contents)
+    m = re.search(r"##verifier-map-beg##[\s\S]*##verifier-map-end##", contents)
     str_to_add = ''
     for c in cpuverifier:
         c = c[2:]

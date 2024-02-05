@@ -445,6 +445,10 @@ public:
     set(options, "pressio:stability", "experimental");
     set(options, "lc:components", map_keys(getCompMap()));
     set(options, "lc:preprocessors", map_keys(getPreproMap()));
+    set(options, "pressio:highlevel", std::vector<std::string>{"pressio:nthreads","lc:components", "lc:preprocessors"});
+    set(options, "predictors:runtime", std::vector<std::string>{"pressio:nthreads","lc:components", "lc:preprocessors"});
+    set(options, "predictors:error_agnostic", std::vector<std::string>{"lc:components", "lc:preprocessors"});
+    set(options, "predictors:error_dependent", std::vector<std::string>{"lc:preprocessors"});
     return options;
   }
 
