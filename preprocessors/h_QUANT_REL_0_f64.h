@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,7 +42,7 @@ static inline double h_QUANT_REL_0_f64_log2approx(const double orig_f)
   const int mantissabits = 52;
   const long long orig_i = *((long long*)&orig_f);
   const int expo = (orig_i >> mantissabits) & 0x7ff;
-  const long long frac_i = (1023LL << mantissabits) | (orig_i & ~(~0LL << mantissabits));
+  const long long frac_i = (1023LL << mantissabits) | (orig_i & ~(~0ULL << mantissabits));
   const double frac_f = *((double*)&frac_i);
   const double log_f = frac_f + (expo - 1024);  // - bias - 1
   return log_f;
@@ -56,7 +56,7 @@ static inline double h_QUANT_REL_0_f64_pow2approx(const double log_f)
   const long long expo = biased;
   const double frac_f = biased - (expo - 1);
   const long long frac_i = *((long long*)&frac_f);
-  const long long exp_i = (expo << mantissabits) | (frac_i & ~(~0LL << mantissabits));
+  const long long exp_i = (expo << mantissabits) | (frac_i & ~(~0ULL << mantissabits));
   const double recon_f = *((double*)&exp_i);
   return recon_f;
 }
@@ -75,7 +75,7 @@ static inline void h_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, c
   long long* const data_i = (long long*)data;
 
   const int mantissabits = 52;
-  const long long signexpomask = ~0LL << mantissabits;
+  const long long signexpomask = ~0ULL << mantissabits;
   const long long maxbin = (1LL << (mantissabits - 2)) - 1;  // leave 2 bits for 2 signs (plus one element)
   const double log2eb = 2 * h_QUANT_REL_0_f64_log2approx(1 + errorbound);
   const double inv_log2eb = 1 / log2eb;
@@ -133,7 +133,7 @@ static inline void h_iQUANT_REL_0_f64(int& size, byte*& data, const int paramc, 
   long long* const data_i = (long long*)data;
 
   const int mantissabits = 52;
-  const long long signexpomask = ~0LL << mantissabits;
+  const long long signexpomask = ~0ULL << mantissabits;
   const double log2eb = 2 * h_QUANT_REL_0_f64_log2approx(1 + errorbound);
 
   #pragma omp parallel for default(none) shared(len, data_f, data_i, log2eb, signexpomask)

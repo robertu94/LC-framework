@@ -33,13 +33,15 @@ If, instead, you want to run LC on the GPU, generate the framework as follows:
 
 In either case, run the printed command to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -DUSE_CPU -o lc lc.cpp
+    g++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -o lc lc.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -I. -o lc lc.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
+
+The generate_Hybrid_LC-Framework.py script is only for testing and should not be used as it generates slow code.
 
 
 ### Usage Examples for Lossless Compression Algorithms
@@ -82,7 +84,7 @@ Note that the search time increases exponentially with the number of stages. Bef
 
 The output lists the number of algorithms that will be tested as well as which components will be considered in each pipeline stage. If this number is too large, i.e., the search would take too long, try reducing the search space by limiting the number of components to be considered:
 
-    ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "" "DIFF_4 .+ .+ R.+|C.+|H.+"
 
 If available, we recommend using the GPU version of LC as it tends to be much faster than the CPU version. To further speed up the search, LC includes a genetic algorithm (GA) to quickly search for a good but not necessarily the best algorithm. If you want to run the GA to find a good pipeline with 5 stages, enter the following command:
 
@@ -92,7 +94,7 @@ If you are interested in the throughput in addition to the compression ratio, us
 
     ./lc input.dat EX "" ".+ .+"
 
-The output includes the Pareto front (https://en.wikipedia.org/wiki/Pareto_front) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput.
+The output includes the Pareto front (https://en.wikipedia.org/wiki/Pareto_front) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
 
 All *CR* and *EX* runs with more than one algorithm also write their results to a CSV file that can be opened with most spreadsheet applications to view and postprocess the results.
 
@@ -108,6 +110,8 @@ In summary, LC supports the following modes:
 
  **EX**: This mode searches for the algorithms on the Pareto front, taking into account both the compression ratio and the compression/decompression throughput.
 
+ **TS**: This mode is for testing only and should not be used.
+
 
 ### Usage Examples for Lossy Floating-Point Compression Algorithms
 
@@ -115,40 +119,49 @@ To generate lossy algorithms with LC, preprocessors are needed. They must be ful
 
 To find a good lossy compression algorithm for IEEE-754 32-bit single-precision floating-point data that are quantized with a maximum point-wise absolute error bound of 0.01 and then losslessly compressed with three components, enter:
 
-    ./lc input.dat CR "QUANT_ABS_0_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_ABS_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 To do the same with a point-wise relative error bound, use:
 
-    ./lc input.dat CR "QUANT_REL_0_f32(0.01)" ".+ .+ R.+|Z.+|C.+|H.+"
+    ./lc input.dat CR "QUANT_REL_0_f32(0.01)" ".+ .+ R.+|C.+|H.+"
 
 The preprocessors work with the *CR*, *EX*, and *AL* modes. However, since both *EX* and *AL* verify the result, the default lossless verification will likely fail for lossy compression. LC includes a set of verifiers that can be selected in lieu of the default verifier. For an point-wise absolute error bound of 0.001, use:
 
-    ./lc input.dat EX "QUANT_ABS_0_f32(0.001)" ".+ R.+|Z.+|C.+|H.+" "MAXABS_f32(0.001)"
+    ./lc input.dat EX "QUANT_ABS_0_f32(0.001)" ".+ R.+|C.+|H.+" "MAXABS_f32(0.001)"
 
 See the ./verifiers/ directory for additional available verifiers or the description below.
+
+These quantizers replace any lost bits with zeros. If you prefer those bits be replaced by random data to minimize autocorrelation, use:
+
+    ./lc input.dat CR "QUANT_ABS_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
+or
+
+    ./lc input.dat CR "QUANT_REL_R_f32(0.01)" ".+ .+ R.+|C.+|H.+"
+
 
 
 ### Standalone Compressor and Decompressor Generation
 
-Once you have determined a good lossless or lossy compression algorithm (e.g., "TUPL4_1 R2E_1 CLOG_1"), you can generate a standalone compressor and a standalone decompressor that are optimized for this algorithm.
+Once you have determined a good lossless or lossy compression algorithm (e.g., "TUPL4_1 RRE_1 CLOG_1"), you can generate a standalone compressor and a standalone decompressor that are optimized for this algorithm.
 
 To generate the CPU version, run:
 
-    ./generate_standalone_CPU_compressor_decompressor.py "" "TUPL4_1 R2E_1 CLOG_1"
+    ./generate_standalone_CPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
 
 To generate the GPU version, run:
 
-    ./generate_standalone_GPU_compressor_decompressor.py "" "TUPL4_1 R2E_1 CLOG_1"
+    ./generate_standalone_GPU_compressor_decompressor.py "" "TUPL4_1 RRE_1 CLOG_1"
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -o compress compressor-standalone.cpp
-    g++ -O3 -march=native -fopenmp -o decompress decompressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -o compress compressor-standalone.cu
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -o decompress decompressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o decompress decompressor-standalone.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -204,6 +217,8 @@ Predictors guess the next value by extrapolating it from prior values and then s
 
 **DIFF**: This component computes the difference sequence (also called "delta modulation") by subtracting the previous value from the current value and outputting the resulting difference. If neighboring values correlate with each other, this tends to produce a more compressible sequence.
 
+**DIFFMS**: This component computes the difference sequence like DIFF does but outputs the result in sign-magnitude format, which is often more compressible because it tends to produce values with many leading zero bits.
+
 
 ### Reducers
 
@@ -213,11 +228,11 @@ Reducers are the only components that can compress the data. They exploit variou
 
 **HCLOG**: This component works like CLOG except it first applies the TCMS transformation to all values in a subchunk that yield no leading zero bits when using CLOG.
 
-**R2E**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is a repetition of the prior word or not. It outputs the non-repeating words and a compressed version of the bitmap that is compressed with the same algorithm.
-
 **RLE**: This component performs run-length encoding. It counts how many times a value appears in a row. Then it counts how many non-repeating values follow. Both counts are emitted and followed by a single instance of the repeating value as well as all non-repeating values.
 
-**ZERE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like R2E does.
+**RRE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is a repetition of the prior word or not. It outputs the non-repeating words and a compressed version of the bitmap that is repeatedly compressed with the same algorithm.
+
+**RZE**: This component creates a bitmap in which each bit specifies whether the corresponding word in the input is zero or not. It outputs the non-zero words and a compressed version of the bitmap like RRE does.
 
 
 ## Available Preprocessors
@@ -241,6 +256,8 @@ All quantizers require a parameter that specifies the maximally allowed error bo
 
 **QUANT_ABS_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise absolute error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' such that V - EB <= V' <= V + EB.
 
+**QUANT_R2R**: These preprocessors quantize 32- and 64-bit floating-point values just like their QUANT_ABS counterparts except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
+
 **QUANT_REL_0**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. All values that end up in the same quantization bin are decompressed to the same value. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
 
 **QUANT_REL_R**: These preprocessors quantize 32- and 64-bit floating-point values based on the provided point-wise relative error bound. Each value from the same quantization bin is decompressed to a random value within the provided error bound to minimize autocorrelation. These preprocessors guarantee that the original value V is decoded to a value V' with the same sign such that |V| / (1 + EB) <= |V'| <= |V| \* (1 + EB).
@@ -255,6 +272,8 @@ Some verifiers support different data types. The end of their names indicates th
 **PASS**: This verifier always passes verification and is only useful for debugging.
 
 **MAXABS**: This verifier takes a point-wise absolute error bound as parameter and only passes verification if every output value is within the specified error bound.
+
+**MAXR2R**: This verifier works like MAXABS except the provided error bound is first multiplied by the range of values occurring in the input, where the range is the maximum value minus the minimum value.
 
 **MAXREL**: This verifier takes a point-wise relative error bound as parameter and only passes verification if every output value is within the specified error bound.
 
@@ -431,6 +450,8 @@ The following code provides an example of a CPU preprocessor called **ADD_i32** 
 
 LC currently supports inputs of up to 2 GB in size.
 
+LC currently only works on little-endian systems.
+
 For testing, you can generate the LC framework using the *generate_Hybrid_LC-Framework.py* script. This will include all components and preprocessors for which both CPU and GPU versions exist, i.e., whose names match except for the leading "h_" and "d_". Running the resulting code will redundantly perform the compression and decompression on both devices and, importantly, compare the results bit for bit. This is useful to ensure that the CPU and GPU implementations of all components and preprocessors produce the exact same compressed and decompressed data.
 
 
@@ -438,7 +459,7 @@ For testing, you can generate the LC framework using the *generate_Hybrid_LC-Fra
 
 ## Team
 
-The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Rain Lawson under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
+The LC framework is being developed at Texas State University by Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, and Yiqian Liu under the supervision of Prof. Martin Burtscher and is joint work with Sheng Di and Franck Cappello from Argonne National Laboratory.
 
 
 ## Sponsor

@@ -5,7 +5,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -94,13 +94,14 @@ for f in cfiles:
   if f.startswith("h_"):
     cpucomps.append(f[:-2])
 if args.verbose:
-    print("cpucomps ", cpucomps, file=stderr)
+    print("cpucomps \n", ', '.join(cpucomps), file=stderr)
 
 # sort components
 cpucomps.sort()
 
 # update constants
-with open(args.output_dir + '/components/include/consts.h', 'w') as f:
+os.makedirs(args.output_dir + '/include/', exist_ok=True)
+with open(args.output_dir + '/include/consts.h', 'w') as f:
   f.write("static const int CS = 1024 * 16;  // chunk size (in bytes) [do not change]\n")
 
 # update enum.h
@@ -116,7 +117,7 @@ for f in cfiles:
   if f.startswith("h_"):
     cpupreprocess.append(f[:-2])
 if args.verbose:
-    print("cpupreprocess ", cpupreprocess, file=stderr)
+    print("\ncpupreprocess \n",', '.join(cpupreprocess), file=stderr)
 
 #update preprocessor enum.h
 update_enum(args.output_dir + '/preprocessors/include/CPUpreprocessors.h', cpupreprocess, 'CPUpreprocessor')
@@ -131,7 +132,7 @@ for f in cfiles:
   if f.endswith(".h"):
     cpuverifier.append("v_" + f[:-2])
 if args.verbose:
-    print("cpuverifier ", cpuverifier, file=stderr)
+    print("\nverifier \n", ', '.join(cpuverifier), file=stderr)
 
 # update enum.h
 update_enum(args.output_dir + '/verifiers/include/verifiers.h', cpuverifier, 'VERIFIER')
@@ -208,7 +209,7 @@ with open(file, "r+") as f:
 #update switch host preprocess decode
 with open(file, "r+") as f:
   contents = f.read()
-  m = re.search("##switch-host-preprocess-decode-beg##[\s\S]*##switch-host-preprocess-decode-end##", contents)
+  m = re.search(r"##switch-host-preprocess-decode-beg##[\s\S]*##switch-host-preprocess-decode-end##", contents)
   str_to_add = ''
   for c in cpupreprocess:
     c = c[2:]
@@ -260,5 +261,6 @@ with open(file, "r+") as f:
     f.truncate()
     f.write(contents)
 
-print("Compile with\ng++ -O3 -march=native -fopenmp -DUSE_CPU -I. -o lc lc.cpp\n")
+print("\nCompile with\ng++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp\n")
 print("Run the following command to see the usage message\n./lc")
+

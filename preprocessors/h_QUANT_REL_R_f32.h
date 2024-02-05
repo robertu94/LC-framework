@@ -3,7 +3,7 @@ This file is part of the LC framework for synthesizing high-speed parallel lossl
 
 BSD 3-Clause License
 
-Copyright (c) 2021-2023, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
+Copyright (c) 2021-2024, Noushin Azami, Alex Fallin, Brandon Burtchell, Andrew Rodriguez, Benila Jerald, Yiqian Liu, and Martin Burtscher
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@ static inline float h_QUANT_REL_R_f32_log2approxf(const float orig_f)
   const int mantissabits = 23;
   const int orig_i = *((int*)&orig_f);
   const int expo = (orig_i >> mantissabits) & 0xff;
-  const int frac_i = (127 << mantissabits) | (orig_i & ~(~0 << mantissabits));
+  const int frac_i = (127 << mantissabits) | (orig_i & ~(~0U << mantissabits));
   const float frac_f = *((float*)&frac_i);
   const float log_f = frac_f + (expo - 128);  // - bias - 1
   return log_f;
@@ -65,7 +65,7 @@ static inline float h_QUANT_REL_R_f32_pow2approxf(const float log_f)
   const int expo = biased;
   const float frac_f = biased - (expo - 1);
   const int frac_i = *((int*)&frac_f);
-  const int exp_i = (expo << mantissabits) | (frac_i & ~(~0 << mantissabits));
+  const int exp_i = (expo << mantissabits) | (frac_i & ~(~0U << mantissabits));
   const float recon_f = *((float*)&exp_i);
   return recon_f;
 }
@@ -84,7 +84,7 @@ static inline void h_QUANT_REL_R_f32(int& size, byte*& data, const int paramc, c
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
-  const int signexpomask = ~0 << mantissabits;
+  const int signexpomask = ~0U << mantissabits;
   const int maxbin = (1 << (mantissabits - 2)) - 1;  // leave 2 bits for 2 signs (plus one element)
   const float log2eb = h_QUANT_REL_R_f32_log2approxf(1 + errorbound);
   const float inv_log2eb = 1 / log2eb;
@@ -145,7 +145,7 @@ static inline void h_iQUANT_REL_R_f32(int& size, byte*& data, const int paramc, 
   int* const data_i = (int*)data;
 
   const int mantissabits = 23;
-  const int signexpomask = ~0 << mantissabits;
+  const int signexpomask = ~0U << mantissabits;
   const float log2eb = h_QUANT_REL_R_f32_log2approxf(1 + errorbound);
   const int mask = (1 << mantissabits) - 1;
   const float inv_mask = 1.0f / mask;
