@@ -128,54 +128,31 @@ static std::vector<byte> getStages(std::map<std::string, byte> comp_name2num, st
 
 static std::vector<std::pair<byte, std::vector<double>>> getItems(std::map<std::string, byte> item_name2num, std::vector<std::string> const& names)
 {
-  std::vector<std::pair<byte, std::vector<double>>> items;
+    std::vector<std::pair<byte, std::vector<double>>> items;
 
-  for (auto i : names) {
-    // get name
-    const char* p = i.c_str();
-    const char* beg = i.c_str();
-    while ((*p != 0) && (*p != ' ') && (*p != '\t') && (*p != '(')) p++;  // find end of name
-    const char* end = i.c_str();
-    if (end <= beg) {fprintf(stderr, "ERROR: expected an item name in specification\n\n"); exit(-1);}
-    int num = -1;
-    for (auto pair: item_name2num) {
-      const std::string itemname = pair.first;
-      const byte itemnum = pair.second;
-      if (i.substr(0, end-beg) == itemname) {
-        num = itemnum;
-        break;
-      }
+    std::regex spec_regex("([a-zA-Z0-9_]+)(?:\\(([^,]+(?:,(?:[^,]+))*)\\))?");
+    std::regex params_regex("[^,]+");
+    std::smatch spec_match;
+    for (auto name : names) {
+        if(!std::regex_match(name, spec_match, spec_regex)) {
+            throw std::runtime_error("invalid item specficiation");
+        }
+        std::string itemname = spec_match[1].str();
+        int num = item_name2num.at(itemname);
+
+        // read in parameters
+        std::vector<double> params;
+        if(spec_match[2].matched) {
+            std::sregex_iterator params_begin(spec_match[2].first, spec_match[2].second, params_regex);
+            std::sregex_iterator params_end;
+            std::transform(params_begin, params_end, std::back_inserter(params), [](std::smatch const& it){
+                        return std::stod(it.str());
+                    });
+        }
+        items.emplace_back(std::move(num), std::move(params));
     }
-    if (num < 0) {fprintf(stderr, "ERROR: unknown item name\n\n"); exit(-1);}
 
-    // read in parameters
-    std::vector<double> params;
-    while ((*p != 0) && ((*p == ' ') || (*p == '\t'))) p++;  // skip over white space
-    if (*p != '(') {fprintf(stderr, "ERROR: expected '(' in specification\n\n"); exit(-1);}
-    p++;
-    while ((*p != 0) && ((*p == ' ') || (*p == '\t'))) p++;  // skip over white space
-    while ((*p != 0) && (*p != ')')) {
-      // get double
-      char* pos;
-      const double d = std::strtod(p, &pos);
-      if (pos == p) {fprintf(stderr, "ERROR: expected a value in specification\n\n"); exit(-1);}
-      p = pos;
-      params.push_back(d);
-      while ((*p != 0) && ((*p == ' ') || (*p == '\t'))) p++;  // skip over white space
-      if (*p == ')') break;
-
-      // consume comma
-      if (*p != ',') {fprintf(stderr, "ERROR: expected ',' in specification\n\n"); exit(-1);}
-      p++;
-      while ((*p != 0) && ((*p == ' ') || (*p == '\t'))) p++;  // skip over white space
-    }
-    if (*p != ')') {fprintf(stderr, "ERROR: expected ')' in specification\n\n"); exit(-1);}
-    p++;
-    items.push_back(std::make_pair((byte)num, params));
-    while ((*p != 0) && ((*p == ' ') || (*p == '\t'))) p++;  // skip over white space
-  }
-
-  return items;
+    return items;
 }
 
 static void verify(const int size, const byte* const recon, const byte* const orig, std::vector<std::pair<byte, std::vector<double>>> verifs)
@@ -479,7 +456,7 @@ public:
         if(tmp_preprocess_steps.size() > max_stages) {
             return set_error(1, "too many encoding stages");
         }
-        component_steps = std::move(tmp_preprocess_steps);
+        preprocessor_steps = std::move(tmp_preprocess_steps);
     }
     get(options, "pressio:nthreads", &n_threads);
     return 0;
@@ -488,29 +465,38 @@ public:
   int compress_impl(const pressio_data* input,
                     struct pressio_data* output) override
   {
-      auto prepros = getItems(getPreproMap(), preprocessor_steps);
-      pressio_data hpreencodedata = pressio_data::clone(*input);
-      unsigned char* hprencodedata_ptr = static_cast<unsigned char*>(hpreencodedata.data());
-      int hpreencodesize = hpreencodedata.size_in_bytes();
-      auto preprocess_begin = std::chrono::steady_clock::now();
-      h_preprocess_encode(hpreencodesize, hprencodedata_ptr, prepros);
-      auto preprocess_end = std::chrono::steady_clock::now();
-      preprocess_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
-      view_segment(&hpreencodedata, "preprocessed");
+      try {
+          auto prepros = getItems(getPreproMap(), preprocessor_steps);
 
-      const int hchunks = (hpreencodesize + CS - 1) / CS;  // round up
-      const int hmaxsize = 3 * sizeof(int) + hchunks * sizeof(short) + hchunks * CS;  //MB: adjust later
-      pressio_data hencoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hmaxsize)});
-      int hencsize = 0;
+          pressio_data hpreencodedata = pressio_data::clone(*input);
+          unsigned char* hprencodedata_ptr = static_cast<unsigned char*>(hpreencodedata.data());
+          int hpreencodesize = hpreencodedata.size_in_bytes();
+          auto preprocess_begin = std::chrono::steady_clock::now();
+          h_preprocess_encode(hpreencodesize, hprencodedata_ptr, prepros);
+          auto preprocess_end = std::chrono::steady_clock::now();
+          preprocess_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
+          view_segment(&hpreencodedata, "preprocessed");
 
-      auto encode_begin = std::chrono::steady_clock::now();
-      h_encode(get_chain(), static_cast<byte*>(hpreencodedata.data()), hpreencodesize, static_cast<byte*>(hencoded.data()), hencsize, n_threads.value_or(omp_get_num_threads()));
-      auto encode_end = std::chrono::steady_clock::now();
-      encode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
-      hencoded.set_dimensions({static_cast<size_t>(hencsize)});
-      *output = std::move(hencoded);
+          const int hchunks = (hpreencodesize + CS - 1) / CS;  // round up
+          const int hmaxsize = 3 * sizeof(int) + hchunks * sizeof(short) + hchunks * CS;  //MB: adjust later
+          pressio_data hencoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hmaxsize)});
+          int hencsize = 0;
 
-      return 0;
+          auto encode_begin = std::chrono::steady_clock::now();
+          h_encode(get_chain(), static_cast<byte*>(hpreencodedata.data()), hpreencodesize, static_cast<byte*>(hencoded.data()), hencsize, n_threads.value_or(omp_get_num_threads()));
+          auto encode_end = std::chrono::steady_clock::now();
+          encode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
+          hencoded.set_dimensions({static_cast<size_t>(hencsize)});
+          *output = std::move(hencoded);
+          return 0;
+      } catch (std::runtime_error const& ex) {
+          return set_error(1, std::string("invalid stage: ") + ex.what());
+      } catch (std::out_of_range const& ex) {
+          return set_error(2, std::string("invalid preprocessor: ") + ex.what());
+      } catch (std::invalid_argument const& ex) {
+          return set_error(3, std::string("invalid preprocessor argument: ") + ex.what());
+      }
+
   }
 
   int decompress_impl(const pressio_data* input,
@@ -531,18 +517,26 @@ public:
       auto encode_end = std::chrono::steady_clock::now();
       decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
 
-      auto prepros = getItems(getPreproMap(), preprocessor_steps);
-      int houtputsize = output->size_in_bytes();
-      byte* data = static_cast<byte*>(hdecoded.data());
-      auto preprocess_begin = std::chrono::steady_clock::now();
-      h_preprocess_decode(houtputsize, data, prepros);
-      auto preprocess_end = std::chrono::steady_clock::now();
-      preprocess_decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
-      hdecoded.set_dtype(output->dtype());
-      auto dims = output->dimensions();
-      hdecoded.set_dimensions(std::move(dims));
-      *output = std::move(hdecoded);
-      return 0;
+      try {
+          auto prepros = getItems(getPreproMap(), preprocessor_steps);
+          int houtputsize = output->size_in_bytes();
+          byte* data = static_cast<byte*>(hdecoded.data());
+          auto preprocess_begin = std::chrono::steady_clock::now();
+          h_preprocess_decode(houtputsize, data, prepros);
+          auto preprocess_end = std::chrono::steady_clock::now();
+          preprocess_decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
+          hdecoded.set_dtype(output->dtype());
+          auto dims = output->dimensions();
+          hdecoded.set_dimensions(std::move(dims));
+          *output = std::move(hdecoded);
+          return 0;
+      } catch (std::runtime_error const& ex) {
+          return set_error(1, std::string("invalid stage: ") + ex.what());
+      } catch (std::out_of_range const& ex) {
+          return set_error(2, std::string("invalid preprocessor: ") + ex.what());
+      } catch (std::invalid_argument const& ex) {
+          return set_error(3, std::string("invalid preprocessor argument: ") + ex.what());
+      }
   }
 
   int major_version() const override { return 0; }
