@@ -88,8 +88,8 @@ using byte = unsigned char;
 #include <map>
 #include <chrono>
 #include <regex>
+#include "framework-common.h"
 
-#include "verifiers/include/verifiers.h"
 #include "include/consts.h"
 #ifndef USE_GPU
   #ifndef USE_CPU
@@ -116,8 +116,7 @@ using byte = unsigned char;
 
 namespace libpressio { namespace lc_ns {
 
-static const int max_stages = 8;  // cannot be more than 8
-static std::vector<byte> getStages(std::map<std::string, byte> comp_name2num, std::vector<std::string> const& entries)
+static std::vector<byte> getStagesSingleCompressor(std::map<std::string, byte> comp_name2num, std::vector<std::string> const& entries)
 {
   std::vector<byte> comp_list;
   std::transform(entries.begin(), entries.end(), std::back_inserter(comp_list), [&comp_name2num](std::string const& e){
@@ -126,7 +125,7 @@ static std::vector<byte> getStages(std::map<std::string, byte> comp_name2num, st
   return comp_list;
 }
 
-static std::vector<std::pair<byte, std::vector<double>>> getItems(std::map<std::string, byte> item_name2num, std::vector<std::string> const& names)
+static std::vector<std::pair<byte, std::vector<double>>> getItemsSingleCompressor(std::map<std::string, byte> item_name2num, std::vector<std::string> const& names)
 {
     std::vector<std::pair<byte, std::vector<double>>> items;
 
@@ -155,241 +154,11 @@ static std::vector<std::pair<byte, std::vector<double>>> getItems(std::map<std::
     return items;
 }
 
-static void verify(const int size, const byte* const recon, const byte* const orig, std::vector<std::pair<byte, std::vector<double>>> verifs)
-{
-  for (int i = 0; i < verifs.size(); i++) {
-    std::vector<double> params = verifs[i].second;
-    switch (verifs[i].first) {
-      default: fprintf(stderr, "ERROR: unknown verifier\n\n"); exit(-1); break;
-      /*##switch-verify-beg##*/
-
-      // code will be automatically inserted
-
-      /*##switch-verify-end##*/
-    }
-  }
-}
-
-static std::map<std::string, byte> getVerifMap()
-{
-  std::map<std::string, byte> verifs;
-  /*##verifier-map-beg##*/
-
-  // code will be automatically inserted
-
-  /*##verifier-map-end##*/
-  return verifs;
-}
 
 
-static std::map<std::string, byte> getPreproMap()
-{
-  std::map<std::string, byte> preprocessors;
-  preprocessors["NUL"] = 0;
-  /*##preprocessor-map-beg##*/
-
-  // code will be automatically inserted
-
-  /*##preprocessor-map-end##*/
-  return preprocessors;
-}
 
 
-static std::map<std::string, byte> getCompMap()
-{
-  std::map<std::string, byte> components;
-  components["NUL"] = 0;
-  /*##component-map-beg##*/
 
-  // code will be automatically inserted
-
-  /*##component-map-end##*/
-  return components;
-}
-
-
-static std::string getPipeline(unsigned long long pipeline, const int stages)
-{
-  std::string s;
-  for (int i = 0; i < stages; i++) {
-    switch (pipeline & 0xff) {
-      default: s += " NUL"; break;
-      /*##switch-pipeline-beg##*/
-
-      // code will be automatically inserted
-
-      /*##switch-pipeline-end##*/
-    }
-    pipeline >>= 8;
-  }
-  s.erase(0, 1);
-  return s;
-}
-
-#ifdef USE_CPU
-static void h_encode(const unsigned long long chain, const byte* const __restrict__ input, const int insize, byte* const __restrict__ output, int& outsize, uint32_t nthreads)
-{
-  // initialize
-  const int chunks = (insize + CS - 1) / CS;  // round up
-  int* const head_out = (int*)output;
-  unsigned short* const size_out = (unsigned short*)&head_out[1];
-  byte* const data_out = (byte*)&size_out[chunks];
-  int* const carry = new int [chunks];
-  memset(carry, 0, chunks * sizeof(int));
-
-  // process chunks in parallel
-  #pragma omp parallel for schedule(dynamic, 1) num_threads(nthreads)
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
-    // load chunk
-    long long chunk1 [CS / sizeof(long long)];
-    long long chunk2 [CS / sizeof(long long)];
-    byte* in = (byte*)chunk1;
-    byte* out = (byte*)chunk2;
-    const int base = chunkID * CS;
-    const int osize = std::min(CS, insize - base);
-    memcpy(out, &input[base], osize);
-
-    // encode chunk
-    int csize = osize;
-    bool good = true;
-    unsigned long long pipeline = chain;
-    while ((pipeline != 0) && good) {
-      std::swap(in, out);
-      switch (pipeline & 0xff) {
-        default: std::swap(in, out); break;
-        /*##switch-host-encode-beg##*/
-
-        // code will be automatically inserted
-
-        /*##switch-host-encode-end##*/
-      }
-      pipeline >>= 8;
-    }
-
-    // handle carry and store chunk
-    int offs = 0;
-    if (chunkID > 0) {
-      do {
-        #pragma omp atomic read
-        offs = carry[chunkID - 1];
-      } while (offs == 0);
-      #pragma omp flush
-    }
-    if (good && (csize < osize)) {
-      // store compressed data
-      #pragma omp atomic write
-      carry[chunkID] = offs + csize;
-      size_out[chunkID] = csize;
-      memcpy(&data_out[offs], out, csize);
-    } else {
-      // store original data
-      #pragma omp atomic write
-      carry[chunkID] = offs + osize;
-      size_out[chunkID] = osize;
-      memcpy(&data_out[offs], &input[base], osize);
-    }
-  }
-
-  // output header
-  head_out[0] = insize;
-
-  // finish
-  outsize = &data_out[carry[chunks - 1]] - output;
-  delete [] carry;
-}
-
-static void h_decode(const unsigned long long chain, const byte* const __restrict__ input, byte* const __restrict__ output, int& outsize, uint32_t n_threads)
-{
-  // input header
-  int* const head_in = (int*)input;
-  outsize = head_in[0];
-
-  // initialize
-  const int chunks = (outsize + CS - 1) / CS;  // round up
-  unsigned short* const size_in = (unsigned short*)&head_in[1];
-  byte* const data_in = (byte*)&size_in[chunks];
-  int* const start = new int [chunks];
-
-  // convert chunk sizes into starting positions
-  int pfs = 0;
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
-    start[chunkID] = pfs;
-    pfs += (int)size_in[chunkID];
-  }
-
-  // process chunks in parallel
-  #pragma omp parallel for schedule(dynamic, 1) num_threads(n_threads)
-  for (int chunkID = 0; chunkID < chunks; chunkID++) {
-    // load chunk
-    long long chunk1 [CS / sizeof(long long)];
-    long long chunk2 [CS / sizeof(long long)];
-    byte* in = (byte*)chunk1;
-    byte* out = (byte*)chunk2;
-    const int base = chunkID * CS;
-    const int osize = std::min(CS, outsize - base);
-    int csize = size_in[chunkID];
-    if (csize == osize) {
-      // simply copy
-      memcpy(&output[base], &data_in[start[chunkID]], osize);
-    } else {
-      // decompress
-      memcpy(out, &data_in[start[chunkID]], csize);
-
-      // decode
-      unsigned long long pipeline = chain;
-      while (pipeline != 0) {
-        std::swap(in, out);
-        switch (pipeline >> 56) {
-          default: std::swap(in, out); break;
-          /*##switch-host-decode-beg##*/
-
-          // code will be automatically inserted
-
-          /*##switch-host-decode-end##*/
-        }
-        pipeline <<= 8;
-      }
-
-      if (csize != osize) {fprintf(stderr, "ERROR: csize %d does not match osize %d\n\n", csize, osize); exit(-1);}
-      memcpy(&output[base], out, csize);
-    }
-  }
-
-  // finish
-  delete [] start;
-}
-
-static void h_preprocess_encode(int& hpreencsize, byte*& hpreencdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
-{
-  for (int i = 0; i < prepros.size(); i++) {
-    std::vector<double> params = prepros[i].second;
-    switch (prepros[i].first) {
-      default: fprintf(stderr, "ERROR: unknown preprocessor\n\n"); exit(-1); break;
-      /*##switch-host-preprocess-encode-beg##*/
-
-      // code will be automatically inserted
-
-      /*##switch-host-preprocess-encode-end##*/
-    }
-  }
-}
-
-
-static void h_preprocess_decode(int& hpredecsize, byte*& hpredecdata, std::vector<std::pair<byte, std::vector<double>>> prepros)
-{
-  for (int i = prepros.size() - 1; i >= 0; i--) {
-    std::vector<double> params = prepros[i].second;
-    switch (prepros[i].first) {
-      default: fprintf(stderr, "ERROR: unknown preprocessor\n\n"); exit(-1); break;
-      /*##switch-host-preprocess-decode-beg##*/
-
-      // code will be automatically inserted
-
-      /*##switch-host-preprocess-decode-end##*/
-    }
-  }
-}
-#endif
 
 template <class K, class V>
 std::vector<K> map_keys(std::map<K,V> const& map) {
@@ -466,7 +235,7 @@ public:
                     struct pressio_data* output) override
   {
       try {
-          auto prepros = getItems(getPreproMap(), preprocessor_steps);
+          auto prepros = getItemsSingleCompressor(getPreproMap(), preprocessor_steps);
 
           pressio_data hpreencodedata = pressio_data::clone(*input);
           unsigned char* hprencodedata_ptr = static_cast<unsigned char*>(hpreencodedata.data());
@@ -518,7 +287,7 @@ public:
       decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
 
       try {
-          auto prepros = getItems(getPreproMap(), preprocessor_steps);
+          auto prepros = getItemsSingleCompressor(getPreproMap(), preprocessor_steps);
           int houtputsize = output->size_in_bytes();
           byte* data = static_cast<byte*>(hdecoded.data());
           auto preprocess_begin = std::chrono::steady_clock::now();
@@ -563,7 +332,7 @@ private:
   unsigned long long get_chain() {
       unsigned long long chain = 0;
       std::vector<byte> comp_list;
-      comp_list = getStages(getCompMap(), component_steps);
+      comp_list = getStagesSingleCompressor(getCompMap(), component_steps);
       for (int s = 0; s < comp_list.size(); s++) {
         unsigned long long compnum = comp_list[s];
         chain |= compnum << (s * 8);

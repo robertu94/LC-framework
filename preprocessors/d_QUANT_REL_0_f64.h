@@ -133,13 +133,13 @@ static __global__ void d_iQUANT_REL_0_f64_kernel(const int len, byte* const __re
 
 static inline void d_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {throw std::runtime_error("QUANT_REL_0_f64: ERROR: size of input must be a multiple of " + std::to_string(sizeof(double)) + " bytes\n");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
-  if (errorbound < 1E-7) {fprintf(stderr, "QUANT_REL_0_f64: ERROR: error_bound must be at least %e\n", 1E-7); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_REL_0_f64: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < 1E-7) {throw std::runtime_error("QUANT_REL_0_f64: ERROR: error_bound must be at least " + std::to_string(1E-7) + "\n");}  // minimum positive normalized value
+  if (threshold <= errorbound) {throw std::runtime_error("QUANT_REL_0_f64: ERROR: threshold must be larger than error_bound\n");}
 
   const double log2eb = 2 * d_QUANT_REL_0_f64_log2approx(1 + errorbound);
   const double inv_log2eb = 1 / log2eb;
@@ -150,11 +150,11 @@ static inline void d_QUANT_REL_0_f64(int& size, byte*& data, const int paramc, c
 
 static inline void d_iQUANT_REL_0_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_REL_0_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {throw std::runtime_error("QUANT_REL_0_f64: ERROR: size of input must be a multiple of " + std::to_string(sizeof(double)) + " bytes\n");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_REL_0_f64(error_bound [, threshold])\n");}
   const double errorbound = paramv[0];
-  if (errorbound < 1E-7) {fprintf(stderr, "QUANT_REL_0_f64: ERROR: error_bound must be at least %e\n", 1E-7); exit(-1);}  // minimum positive normalized value
+  if (errorbound < 1E-7) {throw std::runtime_error("QUANT_REL_0_f64: ERROR: error_bound must be at least " + std::to_string(1E-7) + "\n");}  // minimum positive normalized value
 
   const double log2eb = 2 * d_QUANT_REL_0_f64_log2approx(1 + errorbound);
 

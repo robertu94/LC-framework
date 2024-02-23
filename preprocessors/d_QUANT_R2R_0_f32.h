@@ -45,7 +45,9 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 static __global__ void d_QUANT_R2R_0_f32_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const float errorbound, const float* maxf, const float* minf, const float threshold)
 {
   float* const orig_data_f = (float*)orig_data;
+#ifdef DEBUG
   int* const orig_data_i = (int*)orig_data;
+#endif
   float* const data_f = (float*)data;
   int* const data_i = (int*)data;
 
@@ -97,13 +99,13 @@ static __global__ void d_iQUANT_R2R_0_f32_kernel(const int len, byte* const __re
 
 static inline void d_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {throw std::runtime_error("QUANT_R2R_0_f32: ERROR: size of input must be a multiple of " + std::to_string(sizeof(float)) + " bytes\n");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n");}
   const float errorbound = paramv[0];
   const float threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<float>::infinity();
-  if (errorbound < std::numeric_limits<float>::min()) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: error_bound must be at least %e\n", std::numeric_limits<float>::min()); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < std::numeric_limits<float>::min()) {throw std::runtime_error("QUANT_R2R_0_f32: ERROR: error_bound must be at least " + std::to_string(std::numeric_limits<float>::min()) + "\n");}  // minimum positive normalized value
+  if (threshold <= errorbound) {throw std::runtime_error("QUANT_R2R_0_f32: ERROR: threshold must be larger than error_bound\n");}
 
   byte* d_new_data;
   if (cudaSuccess != cudaMalloc((void**) &d_new_data, size + sizeof(float))) {
@@ -124,9 +126,9 @@ static inline void d_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, c
 
 static inline void d_iQUANT_R2R_0_f32(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(float) != 0) {fprintf(stderr, "QUANT_R2R_0_f32: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(float)); exit(-1);}
+  if (size % sizeof(float) != 0) {throw std::runtime_error("QUANT_R2R_0_f32: ERROR: size of input must be a multiple of " + std::to_string(sizeof(float)) + " bytes\n");}
   const int len = size / sizeof(float);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_R2R_0_f32(error_bound [, threshold])\n");}
 
   d_iQUANT_R2R_0_f32_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len - 1, data);
 

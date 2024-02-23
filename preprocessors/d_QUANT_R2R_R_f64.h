@@ -115,13 +115,13 @@ static __global__ void d_iQUANT_R2R_R_f64_kernel(const int len, byte* const __re
 
 static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {throw std::runtime_error("QUANT_R2R_R_f64: ERROR: size of input must be a multiple of " + std::to_string(sizeof(double)) + " bytes\n");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n");}
   const double errorbound = paramv[0];
   const double threshold = (paramc == 2) ? paramv[1] : std::numeric_limits<double>::infinity();
-  if (errorbound < std::numeric_limits<double>::min()) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: error_bound must be at least %e\n", std::numeric_limits<double>::min()); exit(-1);}  // minimum positive normalized value
-  if (threshold <= errorbound) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound\n"); exit(-1);}
+  if (errorbound < std::numeric_limits<double>::min()) {throw std::runtime_error("QUANT_R2R_R_f64: ERROR: error_bound must be at least " + std::to_string(std::numeric_limits<double>::min()) + "\n");}  // minimum positive normalized value
+  if (threshold <= errorbound) {throw std::runtime_error("QUANT_R2R_R_f64: ERROR: threshold must be larger than error_bound\n");}
 
   byte* d_new_data;
   if (cudaSuccess != cudaMalloc((void**) &d_new_data, size + sizeof(double))) {
@@ -142,9 +142,9 @@ static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
 
 static inline void d_iQUANT_R2R_R_f64(int& size, byte*& data, const int paramc, const double paramv [])
 {
-  if (size % sizeof(double) != 0) {fprintf(stderr, "QUANT_R2R_R_f64: ERROR: size of input must be a multiple of %ld bytes\n", sizeof(double)); exit(-1);}
+  if (size % sizeof(double) != 0) {throw std::runtime_error("QUANT_R2R_R_f64: ERROR: size of input must be a multiple of " + std::to_string(sizeof(double)) + " bytes\n");}
   const int len = size / sizeof(double);
-  if ((paramc != 1) && (paramc != 2)) {fprintf(stderr, "USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n"); exit(-1);}
+  if ((paramc != 1) && (paramc != 2)) {throw std::runtime_error("USAGE: QUANT_R2R_R_f64(error_bound [, threshold])\n");}
 
   d_iQUANT_R2R_R_f64_kernel<<<(len + TPB - 1) / TPB, TPB>>>(len - 1, data);
 

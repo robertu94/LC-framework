@@ -45,17 +45,18 @@ else()
 endif()
 
 file(GLOB LC_SOURCES CONFIGURE_DEPENDS components/*.h verifiers/*.h preprocessors/*.h)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpu)
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lc.cpp
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --output_dir ${CMAKE_CURRENT_BINARY_DIR} ${VERBOSE_FLAG}
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cpu/lc.cpp ${CMAKE_CURRENT_BINARY_DIR}/cpu/include/consts.h
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --output_dir ${CMAKE_CURRENT_BINARY_DIR}/cpu ${VERBOSE_FLAG}
     DEPENDS ${LC_SOURCES} generate_Host_LC-Framework.py framework.cu
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
-add_executable(lc ${CMAKE_CURRENT_BINARY_DIR}/lc.cpp)
+add_executable(lc ${CMAKE_CURRENT_BINARY_DIR}/cpu/lc.cpp)
 target_include_directories(lc PRIVATE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/components>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/cpu/components>
     )
 target_compile_definitions(lc PRIVATE USE_CPU)
 target_link_libraries(lc PRIVATE OpenMP::OpenMP_CXX)
@@ -63,18 +64,39 @@ install(TARGETS lc EXPORT LCTargets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 
+option(LC_BUILD_CUDA "enable support for cuda GPUs" OFF)
+if(LC_BUILD_CUDA)
+enable_language(CUDA)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gpu)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.cu ${CMAKE_CURRENT_BINARY_DIR}/gpu/include/consts.h
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Device_LC-Framework.py --output_dir ${CMAKE_CURRENT_BINARY_DIR}/gpu ${VERBOSE_FLAG}
+        DEPENDS ${LC_SOURCES} generate_Device_LC-Framework.py framework.cu
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+    add_executable(lc-gpu ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.cu)
+    target_include_directories(lc-gpu PRIVATE 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/gpu/components>
+        )
+    target_compile_definitions(lc-gpu PRIVATE USE_GPU)
+    target_link_libraries(lc-gpu PRIVATE OpenMP::OpenMP_CXX)
+    install(TARGETS lc-gpu EXPORT LCTargets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+endif()
+
+
 
 option(LC_BUILD_LIBPRESSIO_PLUGIN "build support for calling LC from LibPressio" OFF)
 if(LC_BUILD_LIBPRESSIO_PLUGIN)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libpressio/)
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/libpressio/lc.cpp
-        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --base_file ${CMAKE_CURRENT_SOURCE_DIR}/lc-libpressio-plugin.cpp --output_dir ${CMAKE_CURRENT_BINARY_DIR}/libpressio/ ${VERBOSE_FLAG}
-        DEPENDS ${LC_SOURCES} generate_Host_LC-Framework.py ./lc-libpressio-plugin.cpp
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
     find_package(LibPressio REQUIRED)
-    add_library(libpressio_lc ${CMAKE_CURRENT_BINARY_DIR}/libpressio/lc.cpp)
+    add_library(libpressio_lc 
+        lc-libpressio-plugin.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/cpu/include/consts.h
+        )
+
     target_link_libraries(libpressio_lc PRIVATE LibPressio::libpressio OpenMP::OpenMP_CXX)
     target_compile_definitions(libpressio_lc PRIVATE USE_CPU)
     target_include_directories(libpressio_lc PUBLIC 
@@ -82,7 +104,7 @@ if(LC_BUILD_LIBPRESSIO_PLUGIN)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
         )
     target_include_directories(libpressio_lc PRIVATE 
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/libpressio/components>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/cpu/>
         )
     install(TARGETS libpressio_lc EXPORT LCTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
