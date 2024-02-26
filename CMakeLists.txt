@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(LC VERSION 1.1.2)
+project(LC VERSION 1.2.2)
 
 #correct was to set a default build type
 # https://blog.kitware.com/cmake-and-the-default-build-type/

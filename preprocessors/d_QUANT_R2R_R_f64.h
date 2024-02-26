@@ -54,7 +54,9 @@ static __device__ unsigned int d_QUANT_R2R_R_f64_hash(unsigned int val)
 static __global__ void d_QUANT_R2R_R_f64_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const double errorbound, const double* maxf, const double* minf, const double threshold)
 {
   double* const orig_data_f = (double*)orig_data;
+#ifdef DEBUG
   long long* const orig_data_i = (long long*)orig_data;
+#endif
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;
 
@@ -126,7 +128,7 @@ static inline void d_QUANT_R2R_R_f64(int& size, byte*& data, const int paramc, c
   byte* d_new_data;
   if (cudaSuccess != cudaMalloc((void**) &d_new_data, size + sizeof(double))) {
     fprintf(stderr, "ERROR: could not allocate d_new_data\n\n");
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
 
   thrust::device_ptr<double> dev_ptr = thrust::device_pointer_cast((double*)data);

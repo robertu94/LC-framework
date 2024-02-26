@@ -110,7 +110,7 @@ static inline void d_QUANT_R2R_0_f32(int& size, byte*& data, const int paramc, c
   byte* d_new_data;
   if (cudaSuccess != cudaMalloc((void**) &d_new_data, size + sizeof(float))) {
     fprintf(stderr, "ERROR: could not allocate d_new_data\n\n");
-    exit(-1);
+    throw std::runtime_error("LC error");
   }
 
   thrust::device_ptr<float> dev_ptr = thrust::device_pointer_cast((float*)data);
