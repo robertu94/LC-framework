@@ -45,7 +45,9 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 static __global__ void d_QUANT_R2R_0_f64_kernel(const int len, byte* const __restrict__ data, byte* const __restrict__ orig_data, const double errorbound, const double* maxf, const double* minf, const double threshold)
 {
   double* const orig_data_f = (double*)orig_data;
+#ifdef DEBUG
   long long* const orig_data_i = (long long*)orig_data;
+#endif
   double* const data_f = (double*)data;
   long long* const data_i = (long long*)data;
 

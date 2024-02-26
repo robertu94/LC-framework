@@ -1,6 +1,10 @@
 # LC Framework
 
-LC is a framework for automatically creating high-speed lossless and error-bounded lossy data compression and decompression algorithms.
+LC is a framework for automatically generating high-speed lossless and guaranteed-error-bounded lossy data compression and decompression algorithms. It supports CPUs and GPUs.
+
+The framework code and tutorial are available at <https://github.com/burtscher/LC-framework/>.
+
+If any part of this tutorial does not work for you or you have other question about LC, please don't hesitate to contact us at <burtscher@txstate.edu> so we can help.
 
 
 ## Overview
@@ -10,7 +14,7 @@ LC consists of the following three parts:
  - Preprocessor library
  - Framework
 
-Both libraries contain encoders and decoders for CPU and GPU execution. The user can extend these libraries. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Moreover, the framework can automatically search for effective algorithms for a given input file or set of files by testing sets of components in each pipeline stage.
+Both libraries contain encoders and decoders for CPU and GPU execution. The user can extend these libraries. The framework takes preprocessors and components from these libraries and chains them into a pipeline to build a compression algorithm. It similarly chains the corresponding decoders in the opposite order to build the matching decompression algorithm. Moreover, the framework can automatically search for effective algorithms for a given input file or set of files by testing user-selected sets of components in each pipeline stage.
 
 ---
 
@@ -33,11 +37,11 @@ If, instead, you want to run LC on the GPU, generate the framework as follows:
 
 In either case, run the printed command to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -DUSE_CPU -I. -std=c++17 -o lc lc.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp" -I. -o lc lc.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o lc lc.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -94,7 +98,7 @@ If you are interested in the throughput in addition to the compression ratio, us
 
     ./lc input.dat EX "" ".+ .+"
 
-The output includes the Pareto front (https://en.wikipedia.org/wiki/Pareto_front) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
+The output includes the Pareto front (<https://en.wikipedia.org/wiki/Pareto_front>) at the end, allowing the user to pick the best algorithm for a given compression or decompression throughput. The six columns list the algorithm, the compression ratio, the CPU compression throughput, the CPU decompression throughput, the GPU compression throughput, and the GPU decompression throughput. The throughputs are given in gigabytes per second.
 
 All *CR* and *EX* runs with more than one algorithm also write their results to a CSV file that can be opened with most spreadsheet applications to view and postprocess the results.
 
@@ -155,13 +159,13 @@ To generate the GPU version, run:
 
 In either case, run the printed commands to compile the generated code. For the CPU, use:
 
-    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o compress compressor-standalone.cpp
-    g++ -O3 -march=native -fopenmp -I. -std=c++17 -o decompress decompressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o compress compressor-standalone.cpp
+    g++ -O3 -march=native -fopenmp -mno-fma -I. -std=c++17 -o decompress decompressor-standalone.cpp
 
 For the GPU, use:
 
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o compress compressor-standalone.cu
-    nvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler "-march=native -fopenmp" -I. -o decompress decompressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o compress compressor-standalone.cu
+    nvcc -O3 -arch=sm_70 -fmad=false -Xcompiler "-O3 -march=native -fopenmp -mno-fma" -I. -o decompress decompressor-standalone.cu
 
 You may have to adjust these commands and flags to your system and compiler. For instance, the *sm_70* should be changed to match your GPU's compute capability.
 
@@ -245,7 +249,9 @@ These quantizers support INFs and NaNs. The end of the quantizer name indicates 
 
 **NUL**: This preprocessor performs the identity transformation, meaning it outputs the input verbatim. It takes no parameters.
 
-**LORxD**: This preprocessor performs an x-dimensional (x = 1, 2, or 3) Lorenzo transformation, i.e., it computes a multidimensional difference sequence. It takes x parameters specifying the size of the input along each dimension.
+**LOR1D**: This preprocessor performs a 1-dimensional Lorenzo transformation, i.e., it computes a difference sequence.
+
+[//]: # "**LORxD**: This preprocessor performs an x-dimensional (x = 1, 2, or 3) Lorenzo transformation, i.e., it computes a multidimensional difference sequence. It takes x parameters specifying the size of the input along each dimension."
 
 
 ### Lossy Quantizers

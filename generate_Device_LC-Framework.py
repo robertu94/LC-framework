@@ -50,11 +50,13 @@ import argparse
 parser = argparse.ArgumentParser("lc")
 parser.add_argument("--output_dir", default=".")
 parser.add_argument("--verbose", action="store_true")
-parser.add_argument("--base_file", default="framework.cu")
+parser.add_argument("--base_file", default="framework.h")
+parser.add_argument("--main_file", default="framework.cu")
 args = parser.parse_args()
 
 # generate lc framework
-shutil.copyfile(args.base_file, args.output_dir + "/lc.cu")
+shutil.copyfile(args.main_file, args.output_dir + "/lc.cu")
+shutil.copyfile(args.base_file, args.output_dir + "/lc.h")
 for i in ["/components/include", "/preprocessors/include", "/verifiers/include"]:
     os.makedirs(args.output_dir + i, exist_ok=True)
 
@@ -117,13 +119,13 @@ for f in gfiles:
 if args.verbose:
     print("\ngpupreprocess \n",', '.join(gpupreprocess), file=stderr)
 
-#update preprocessor enum.h
+# update preprocessor enum.h
 update_enum(args.output_dir + '/preprocessors/include/GPUpreprocessors.h', gpupreprocess, 'GPUpreprocessor')
 
 # update GPUpreprocessors.h
 update_gpu_components(args.output_dir + '/preprocessors/include/GPUpreprocessors.h', gpupreprocess, "preprocessors")
 
-# find verifiers 
+# find verifiers
 cfiles = next(os.walk('./verifiers'))[2]
 gpuverifier = []
 for f in cfiles:
@@ -138,7 +140,7 @@ update_enum(args.output_dir + '/verifiers/include/verifiers.h', gpuverifier, 'VE
 # update verifiers.h
 update_gpu_components(args.output_dir + '/verifiers/include/verifiers.h', gpuverifier, "verifiers")
 
-file = args.output_dir + "/lc.cu"
+file = args.output_dir + "/lc.h"
 # update switch device encode
 with open(file, "r+") as f:
   contents = f.read()
@@ -178,7 +180,7 @@ with open(file, "r+") as f:
   f.truncate()
   f.write(contents)
 
-#update switch verify
+# update switch verify
 with open(file, "r+") as f:
   contents = f.read()
   m = re.search(r"##switch-verify-beg##[\s\S]*##switch-verify-end##", contents)
@@ -192,7 +194,7 @@ with open(file, "r+") as f:
   f.write(contents)
 
 
-#update switch device preprocess encode
+# update switch device preprocess encode
 with open(file, "r+") as f:
   contents = f.read()
   m = re.search(r"##switch-device-preprocess-encode-beg##[\s\S]*##switch-device-preprocess-encode-end##", contents)
@@ -205,7 +207,7 @@ with open(file, "r+") as f:
   f.truncate()
   f.write(contents)
 
-#update switch device preprocess decode
+# update switch device preprocess decode
 with open(file, "r+") as f:
   contents = f.read()
   m = re.search(r"##switch-device-preprocess-decode-beg##[\s\S]*##switch-device-preprocess-decode-end##", contents)
@@ -260,5 +262,5 @@ with open(file, "r+") as f:
     f.write(contents)
 
 # messages
-print("\nCompile with\nnvcc -O3 -arch=sm_70 -DUSE_GPU -Xcompiler \"-O3 -march=native -fopenmp\" -I. -o lc lc.cu\n")
+print("\nCompile with\nnvcc -O3 -arch=sm_70 -fmad=false -DUSE_GPU -Xcompiler \"-O3 -march=native -fopenmp -mno-fma\" -I. -o lc lc.cu\n")
 print("Run the following command to see the usage message\n./lc")

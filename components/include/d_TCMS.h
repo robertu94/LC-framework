@@ -37,17 +37,55 @@ Sponsor: This code is based upon work supported by the U.S. Department of Energy
 */
 
 
-#include "include/d_TCMS.h"
+#ifndef GPU_TCMS
+#define GPU_TCMS
 
 
-static __device__ inline bool d_TCMS_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
+template <typename T>
+static __device__ inline bool d_TCMS(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  d_TCMS<unsigned short>(csize, in, out, temp);
+  T* const in_t = (T*)in;
+  T* const out_t = (T*)out;
+  const int size = csize / sizeof(T);
+  const int tid = threadIdx.x;
+
+  // convert from twos-complement to magnitude-sign format
+  for (int i = tid; i < size; i += TPB) {
+    const T data = in_t[i];
+    const T s = ((std::make_signed_t<T>)data) >> (sizeof(T) * 8 - 1);
+    out_t[i] = (data << 1) ^ s;
+  }
+
+  // copy leftover bytes
+  if constexpr (sizeof(T) > 1) {
+    const int extra = csize % sizeof(T);
+    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
+  }
   return true;
 }
 
 
-static __device__ inline void d_iTCMS_2(int& csize, byte in [CS], byte out [CS], byte temp [CS])
+template <typename T>
+static __device__ inline void d_iTCMS(int& csize, byte in [CS], byte out [CS], byte temp [CS])
 {
-  d_iTCMS<unsigned short>(csize, in, out, temp);
+  T* const in_t = (T*)in;
+  T* const out_t = (T*)out;
+  const int size = csize / sizeof(T);
+  const int tid = threadIdx.x;
+
+  // convert from magnitude-sign to twos-complement format
+  for (int i = tid; i < size; i += TPB) {
+    const T data = in_t[i];
+    const T s = ((std::make_signed_t<T>)(data << (sizeof(T) * 8 - 1))) >> (sizeof(T) * 8 - 1);
+    out_t[i] = (data >> 1) ^ s;
+  }
+
+  // copy leftover bytes
+  if constexpr (sizeof(T) > 1) {
+    const int extra = csize % sizeof(T);
+    if (tid < extra) out[csize - extra + tid] = in[csize - extra + tid];
+  }
 }
+
+
+#endif

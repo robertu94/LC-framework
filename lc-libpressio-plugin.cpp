@@ -88,9 +88,8 @@ using byte = unsigned char;
 #include <map>
 #include <chrono>
 #include <regex>
-#include "framework-common.h"
+#include "lc.h"
 
-#include "include/consts.h"
 #ifndef USE_GPU
   #ifndef USE_CPU
   //no CPU and no GPU
