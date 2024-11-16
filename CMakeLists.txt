@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(LC VERSION 1.2.2)
+project(LC VERSION 1.3.0)
 
 #correct was to set a default build type
 # https://blog.kitware.com/cmake-and-the-default-build-type/
@@ -47,7 +47,7 @@ endif()
 file(GLOB LC_SOURCES CONFIGURE_DEPENDS components/*.h verifiers/*.h preprocessors/*.h)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cpu)
 add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cpu/lc.cpp ${CMAKE_CURRENT_BINARY_DIR}/cpu/include/consts.h
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cpu/lc.h ${CMAKE_CURRENT_BINARY_DIR}/cpu/lc.cpp ${CMAKE_CURRENT_BINARY_DIR}/cpu/include/consts.h
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Host_LC-Framework.py --output_dir ${CMAKE_CURRENT_BINARY_DIR}/cpu ${VERBOSE_FLAG}
     DEPENDS ${LC_SOURCES} generate_Host_LC-Framework.py framework.cu
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -62,6 +62,7 @@ target_compile_definitions(lc PRIVATE USE_CPU)
 target_link_libraries(lc PRIVATE OpenMP::OpenMP_CXX)
 install(TARGETS lc EXPORT LCTargets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT CPU
     )
 
 option(LC_BUILD_CUDA "enable support for cuda GPUs" OFF)
@@ -69,7 +70,7 @@ if(LC_BUILD_CUDA)
 enable_language(CUDA)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/gpu)
     add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.cu ${CMAKE_CURRENT_BINARY_DIR}/gpu/include/consts.h
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.h ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.cu ${CMAKE_CURRENT_BINARY_DIR}/gpu/include/consts.h
         COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_Device_LC-Framework.py --output_dir ${CMAKE_CURRENT_BINARY_DIR}/gpu ${VERBOSE_FLAG}
         DEPENDS ${LC_SOURCES} generate_Device_LC-Framework.py framework.cu
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -83,6 +84,7 @@ enable_language(CUDA)
     target_link_libraries(lc-gpu PRIVATE OpenMP::OpenMP_CXX)
     install(TARGETS lc-gpu EXPORT LCTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT GPU
         )
 endif()
 
@@ -97,6 +99,7 @@ if(LC_BUILD_LIBPRESSIO_PLUGIN)
         ${CMAKE_CURRENT_BINARY_DIR}/cpu/include/consts.h
         )
 
+    add_dependencies(libpressio_lc lc)
     target_link_libraries(libpressio_lc PRIVATE LibPressio::libpressio OpenMP::OpenMP_CXX)
     target_compile_definitions(libpressio_lc PRIVATE USE_CPU)
     target_include_directories(libpressio_lc PUBLIC 
@@ -109,8 +112,41 @@ if(LC_BUILD_LIBPRESSIO_PLUGIN)
     install(TARGETS libpressio_lc EXPORT LCTargets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT LIBPRESSIO
         )
-    install(FILES lc_libpressio.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES lc_libpressio.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT LIBPRESSIO)
+
+    if(LC_BUILD_CUDA)
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/libpressio_gpu/)
+        file(COPY_FILE lc-libpressio-plugin.cpp ${CMAKE_CURRENT_BINARY_DIR}/lc-libpressio-plugin-gpu.cu)
+        add_custom_command(
+            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lc-libpressio-plugin-gpu.cu
+            COMMAND cmake -E copy_if_different lc-libpressio-plugin.cpp ${CMAKE_CURRENT_BINARY_DIR}/lc-libpressio-plugin-gpu.cu
+            DEPENDS lc-libpressio-plugin.cpp
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        add_library(libpressio_lc_gpu
+            ${CMAKE_CURRENT_BINARY_DIR}/lc-libpressio-plugin-gpu.cu
+            ${CMAKE_CURRENT_BINARY_DIR}/gpu/lc.h
+            ${CMAKE_CURRENT_BINARY_DIR}/gpu/include/consts.h
+            )
+        add_dependencies(libpressio_lc_gpu lc-gpu)
+        target_link_libraries(libpressio_lc_gpu PRIVATE LibPressio::libpressio OpenMP::OpenMP_CXX)
+        target_compile_definitions(libpressio_lc_gpu PRIVATE USE_GPU)
+        target_include_directories(libpressio_lc_gpu PRIVATE 
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/gpu/>
+            )
+        target_include_directories(libpressio_lc_gpu PUBLIC 
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>
+            )
+        install(TARGETS libpressio_lc_gpu EXPORT LCTargets
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            COMPONENT LIBPRESSIO_GPU
+            )
+        install(FILES lc_gpu_libpressio.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT LIBPRESSIO_GPU)
+    endif()
 endif()
 
 install(EXPORT LCTargets NAMESPACE LC:: DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LC/)

@@ -76,6 +76,7 @@ using byte = unsigned char;
 #include "libpressio_ext/cpp/data.h"
 #include "libpressio_ext/cpp/options.h"
 #include "libpressio_ext/cpp/pressio.h"
+#include "libpressio_ext/cpp/domain_manager.h"
 #include <omp.h>
 #include <cstring>
 #include <algorithm>
@@ -88,9 +89,14 @@ using byte = unsigned char;
 #include <map>
 #include <chrono>
 #include <regex>
-#include "lc.h"
+#include <lc.h>
 
+#define LC_STR(x) LC_STR_(x)
+#define LC_STR_(x) #x
+#define LC_CONCAT(x,y) LC_CONCAT_(x,y)
+#define LC_CONCAT_(x,y) x ## y
 #ifndef USE_GPU
+  #define LC_PREFIX lc
   #ifndef USE_CPU
   //no CPU and no GPU
   #else
@@ -98,6 +104,7 @@ using byte = unsigned char;
   #include "components/include/CPUcomponents.h"
   #endif
 #else
+  #define LC_PREFIX lc_gpu
   #include <cuda.h>
   #include "include/max_reduction.h"
   #include "include/max_scan.h"
@@ -112,8 +119,9 @@ using byte = unsigned char;
   #include "components/include/components.h"
   #endif
 #endif
+#define LC_LP_PREFIX_STR LC_STR(LC_PREFIX)
 
-namespace libpressio { namespace lc_ns {
+namespace libpressio { namespace LC_CONCAT(LC_PREFIX,_ns) {
 
 static std::vector<byte> getStagesSingleCompressor(std::map<std::string, byte> comp_name2num, std::vector<std::string> const& entries)
 {
@@ -172,41 +180,56 @@ std::map<V,K> map_flip(std::map<K,V> const& map) {
         return flipped;
 }
 
-class lc_compressor_plugin : public libpressio_compressor_plugin {
+class LC_CONCAT(LC_PREFIX,_compressor_plugin) : public libpressio_compressor_plugin {
 public:
   struct pressio_options get_options_impl() const override
   {
     struct pressio_options options;
-    set(options, "lc:components", component_steps);
-    set(options, "lc:preprocessors", preprocessor_steps);
+    set(options, LC_LP_PREFIX_STR ":components", component_steps);
+    set(options, LC_LP_PREFIX_STR ":preprocessors", preprocessor_steps);
+#if USE_CPU
     set(options, "pressio:nthreads", n_threads);
+#endif
     return options;
   }
 
   struct pressio_options get_configuration_impl() const override
   {
     struct pressio_options options;
+#if USE_CPU
     set(options, "pressio:thread_safe", pressio_thread_safety_multiple);
+#else
+    //the GPU version is thread unsafe because the use of a global variable on the GPU
+    set(options, "pressio:thread_safe", pressio_thread_safety_single);
+#endif
     set(options, "pressio:stability", "experimental");
-    set(options, "lc:components", map_keys(getCompMap()));
-    set(options, "lc:preprocessors", map_keys(getPreproMap()));
-    set(options, "pressio:highlevel", std::vector<std::string>{"pressio:nthreads","lc:components", "lc:preprocessors"});
-    set(options, "predictors:runtime", std::vector<std::string>{"pressio:nthreads","lc:components", "lc:preprocessors"});
-    set(options, "predictors:error_agnostic", std::vector<std::string>{"lc:components", "lc:preprocessors"});
-    set(options, "predictors:error_dependent", std::vector<std::string>{"lc:preprocessors"});
+    set(options, LC_LP_PREFIX_STR ":components", map_keys(getCompMap()));
+    set(options, LC_LP_PREFIX_STR ":preprocessors", map_keys(getPreproMap()));
+    set(options, "pressio:highlevel", std::vector<std::string>{
+#if USE_CPU
+            "pressio:nthreads",
+#endif
+            LC_LP_PREFIX_STR ":components", LC_LP_PREFIX_STR ":preprocessors"});
+    set(options, "predictors:runtime", std::vector<std::string>{
+#if USE_CPU
+            "pressio:nthreads",
+#endif
+            LC_LP_PREFIX_STR ":components", LC_LP_PREFIX_STR ":preprocessors"});
+    set(options, "predictors:error_agnostic", std::vector<std::string>{LC_LP_PREFIX_STR ":components", LC_LP_PREFIX_STR ":preprocessors"});
+    set(options, "predictors:error_dependent", std::vector<std::string>{LC_LP_PREFIX_STR ":preprocessors"});
     return options;
   }
 
   struct pressio_options get_documentation_impl() const override
   {
     struct pressio_options options;
-    set(options, "pressio:description", R"()");
-    set(options, "lc:components", "list of components steps to use with LC");
-    set(options, "lc:preprocessors", "list of preprocessors steps to use with LC");
-    set(options, "lc:preprocess_time", "preprocessing time in milliseconds");
-    set(options, "lc:encode_time", "encoding time in milliseconds");
-    set(options, "lc:preprocess_decode_time", "preprocessing decodeing time in milliseconds");
-    set(options, "lc:decode_time", "decoding time in milliseconds");
+    set(options, "pressio:description", R"(LC is a framework for automatically generating customized lossless and guaranteed-error-bounded lossy data-compression algorithms for individual files or groups of files. The resulting compressors and decompressors are parallelized and produce bit-for-bit the same result on CPUs and GPUs.)");
+    set(options, LC_LP_PREFIX_STR ":components", "list of components steps to use with " LC_LP_PREFIX_STR);
+    set(options, LC_LP_PREFIX_STR ":preprocessors", "list of preprocessors steps to use with " LC_LP_PREFIX_STR);
+    set(options, LC_LP_PREFIX_STR ":preprocess_time", "preprocessing time in milliseconds");
+    set(options, LC_LP_PREFIX_STR ":encode_time", "encoding time in milliseconds");
+    set(options, LC_LP_PREFIX_STR ":preprocess_decode_time", "preprocessing decodeing time in milliseconds");
+    set(options, LC_LP_PREFIX_STR ":decode_time", "decoding time in milliseconds");
     return options;
   }
 
@@ -214,13 +237,13 @@ public:
   int set_options_impl(struct pressio_options const& options) override
   {
     std::vector<std::string> tmp_comp_steps, tmp_preprocess_steps;
-    if(get(options, "lc:components", &tmp_comp_steps) == pressio_options_key_set) {
+    if(get(options, LC_LP_PREFIX_STR ":components", &tmp_comp_steps) == pressio_options_key_set) {
         if(tmp_comp_steps.size() > max_stages) {
             return set_error(1, "too many component stages");
         }
         component_steps = std::move(tmp_comp_steps);
     }
-    if(get(options, "lc:preprocessors", &tmp_preprocess_steps) == pressio_options_key_set) {
+    if(get(options, LC_LP_PREFIX_STR ":preprocessors", &tmp_preprocess_steps) == pressio_options_key_set) {
         if(tmp_preprocess_steps.size() > max_stages) {
             return set_error(1, "too many encoding stages");
         }
@@ -230,28 +253,69 @@ public:
     return 0;
   }
 
-  int compress_impl(const pressio_data* input,
+  int compress_impl(const pressio_data* real_input,
                     struct pressio_data* output) override
   {
       try {
+#ifdef USE_CPU
+          auto input = domain_manager().make_readable(domain_plugins().build("malloc"), *real_input);
+#else
+          auto input = domain_manager().make_readable(domain_plugins().build("cudamalloc"), *real_input);
+          const int dchunks = (input.size_in_bytes() + CS - 1) / CS;  // round up
+          const int dmaxsize = 3 * sizeof(int) + dchunks * sizeof(short) + dchunks * CS;  //MB: adjust later
+          cudaDeviceProp deviceProp;
+          cudaGetDeviceProperties(&deviceProp, 0);
+          const int SMs = deviceProp.multiProcessorCount;
+          const int mTpSM = deviceProp.maxThreadsPerMultiProcessor;
+          const int blocks = SMs * (mTpSM / TPB);
+#endif
           auto prepros = getItemsSingleCompressor(getPreproMap(), preprocessor_steps);
 
-          pressio_data hpreencodedata = pressio_data::clone(*input);
-          unsigned char* hprencodedata_ptr = static_cast<unsigned char*>(hpreencodedata.data());
-          int hpreencodesize = hpreencodedata.size_in_bytes();
+          pressio_data hpreencodedata = pressio_data::clone(input);
           auto preprocess_begin = std::chrono::steady_clock::now();
-          h_preprocess_encode(hpreencodesize, hprencodedata_ptr, prepros);
+          {
+              // {h,d}_preprocess_encode will write to hpreencodesize and hpreencode_ptr so we need to release
+              //and re-acquire it after calling the function
+              int hpreencodesize = hpreencodedata.size_in_bytes();
+              unsigned char* hprencodedata_ptr = static_cast<unsigned char*>(hpreencodedata.release());
+
+#ifdef USE_CPU
+              h_preprocess_encode(hpreencodesize, hprencodedata_ptr, prepros);
+#elif USE_GPU
+              d_preprocess_encode(hpreencodesize, hprencodedata_ptr, prepros);
+#else
+#error "either CPU or GPU must be used"
+#endif
+              hpreencodedata.reset(hprencodedata_ptr);
+              hpreencodedata.set_dtype(pressio_byte_dtype);
+              hpreencodedata.reshape({(size_t)hpreencodesize});
+          }
           auto preprocess_end = std::chrono::steady_clock::now();
           preprocess_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
           view_segment(&hpreencodedata, "preprocessed");
 
-          const int hchunks = (hpreencodesize + CS - 1) / CS;  // round up
+          const int hchunks = (hpreencodedata.size_in_bytes() + CS - 1) / CS;  // round up
           const int hmaxsize = 3 * sizeof(int) + hchunks * sizeof(short) + hchunks * CS;  //MB: adjust later
+#ifdef USE_CPU
           pressio_data hencoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hmaxsize)});
+#elif USE_GPU
+          pressio_data hencoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hmaxsize)}, domain_plugins().build("cudamalloc"));
+          pressio_data d_encodesize = pressio_data::owning(pressio_int32_dtype, {1}, domain_plugins().build("cudamalloc"));
+#endif
           int hencsize = 0;
 
           auto encode_begin = std::chrono::steady_clock::now();
-          h_encode(get_chain(), static_cast<byte*>(hpreencodedata.data()), hpreencodesize, static_cast<byte*>(hencoded.data()), hencsize, n_threads.value_or(omp_get_num_threads()));
+#ifdef USE_CPU
+          h_encode(get_chain(), static_cast<byte*>(hpreencodedata.data()), hpreencodedata.size_in_bytes(), static_cast<byte*>(hencoded.data()), hencsize, n_threads.value_or(omp_get_num_threads()));
+#elif USE_GPU
+          pressio_data fullcarry(pressio_data::owning(pressio_int32_dtype, {(size_t)dchunks}, domain_plugins().build("cudamalloc")));
+          cudaMemset(fullcarry.data(), 0, fullcarry.size_in_bytes());
+          d_reset<<<1, 1>>>();
+          d_encode<<<blocks, TPB>>>(get_chain(), static_cast<byte*>(hpreencodedata.data()), hpreencodedata.size_in_bytes(), static_cast<byte*>(hencoded.data()), (int*)d_encodesize.data(), (int*)fullcarry.data());
+          hencsize = *static_cast<int*>(domain_manager().make_readable(domain_plugins().build("malloc"), std::move(d_encodesize)).data());
+#else
+#error "either CPU or GPU must be used"
+#endif
           auto encode_end = std::chrono::steady_clock::now();
           encode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
           hencoded.set_dimensions({static_cast<size_t>(hencsize)});
@@ -267,7 +331,7 @@ public:
 
   }
 
-  int decompress_impl(const pressio_data* input,
+  int decompress_impl(const pressio_data* real_input,
                       struct pressio_data* output) override
   {
       int hdecsize = 0;
@@ -278,25 +342,60 @@ public:
       }
       
       int hpreencsize;
-      memcpy(&hpreencsize, input->data(), sizeof(hdecsize));
+      auto hpreencinput = domain_manager().make_readable(domain_plugins().build("malloc"), *real_input);
+      memcpy(&hpreencsize, hpreencinput.data(), sizeof(hdecsize));
+#ifdef USE_CPU
+      auto input = domain_manager().make_readable(domain_plugins().build("malloc"), *real_input);
       pressio_data hdecoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hpreencsize)});
       auto encode_begin = std::chrono::steady_clock::now();
-      h_decode(schain, static_cast<const byte*>(input->data()), static_cast<byte*>(hdecoded.data()), hdecsize, n_threads.value_or(omp_get_num_threads()));
+      h_decode(schain, static_cast<const byte*>(input.data()), static_cast<byte*>(hdecoded.data()), hdecsize, n_threads.value_or(omp_get_num_threads()));
+#elif USE_GPU
+      const int dchunks = (output->size_in_bytes() + CS - 1) / CS;  // round up
+      const int dmaxsize = 3 * sizeof(int) + dchunks * sizeof(short) + dchunks * CS;  //MB: adjust later
+      cudaDeviceProp deviceProp;
+      cudaGetDeviceProperties(&deviceProp, 0);
+      const int SMs = deviceProp.multiProcessorCount;
+      const int mTpSM = deviceProp.maxThreadsPerMultiProcessor;
+      const int blocks = SMs * (mTpSM / TPB);
+      auto input = domain_manager().make_readable(domain_plugins().build("cudamalloc"), *real_input);
+      pressio_data hdecoded = pressio_data::owning(pressio_byte_dtype, {static_cast<size_t>(hpreencsize)}, domain_plugins().build("cudamalloc"));
+      pressio_data d_decsize = pressio_data::owning(pressio_int32_dtype, {1}, domain_plugins().build("cudamalloc"));
+      auto encode_begin = std::chrono::steady_clock::now();
+      d_reset<<<1, 1>>>();
+      d_decode<<<blocks, TPB>>>(schain, static_cast<const byte*>(input.data()), static_cast<byte*>(hdecoded.data()), (int*)d_decsize.data());
+#endif
       auto encode_end = std::chrono::steady_clock::now();
       decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(encode_end-encode_begin).count();
 
       try {
-          auto prepros = getItemsSingleCompressor(getPreproMap(), preprocessor_steps);
+        // TODO this and corresponding function in compress_impl is subtly
+        // wrong, but okay in the short run.  It works because cudamalloc is
+        // only accessible by other memory also free-able via cudaFree.  In the
+        // future, domain_manager() should be extended to add versions of
+        // make_writeable that are ensure the data is only a specific domain
+        // regardless of accessibility
+
+        auto prepros = getItemsSingleCompressor(getPreproMap(), preprocessor_steps);
+        auto preprocess_begin = std::chrono::steady_clock::now();
+
+#ifdef USE_GPU
+          *output = domain_manager().make_writeable(domain_plugins().build("cudamalloc"), std::move(*output));
+#endif
+        {
           int houtputsize = output->size_in_bytes();
-          byte* data = static_cast<byte*>(hdecoded.data());
-          auto preprocess_begin = std::chrono::steady_clock::now();
+          byte* data = static_cast<byte*>(hdecoded.release());
+#ifdef USE_CPU
           h_preprocess_decode(houtputsize, data, prepros);
+#elif USE_GPU
+          d_preprocess_decode(houtputsize, data, prepros);
+#endif
+          hdecoded.reset(data);
+          hdecoded.set_dtype(output->dtype());
+          hdecoded.reshape(output->dimensions());
+          *output = std::move(hdecoded);
+        }
           auto preprocess_end = std::chrono::steady_clock::now();
           preprocess_decode_ms = std::chrono::duration_cast<std::chrono::milliseconds>(preprocess_end-preprocess_begin).count();
-          hdecoded.set_dtype(output->dtype());
-          auto dims = output->dimensions();
-          hdecoded.set_dimensions(std::move(dims));
-          *output = std::move(hdecoded);
           return 0;
       } catch (std::runtime_error const& ex) {
           return set_error(1, std::string("invalid stage: ") + ex.what());
@@ -311,20 +410,20 @@ public:
   int minor_version() const override { return 0; }
   int patch_version() const override { return 1; }
   const char* version() const override { return "0.0.1"; }
-  const char* prefix() const override { return "lc"; }
+  const char* prefix() const override { return LC_LP_PREFIX_STR ; }
 
   pressio_options get_metrics_results_impl() const override {
       pressio_options options;
-      set(options, "lc:preprocess_time", preprocess_ms);
-      set(options, "lc:encode_time", encode_ms);
-      set(options, "lc:preprocess_decode_time", preprocess_decode_ms);
-      set(options, "lc:decode_time", decode_ms);
+      set(options, LC_LP_PREFIX_STR ":preprocess_time", preprocess_ms);
+      set(options, LC_LP_PREFIX_STR ":encode_time", encode_ms);
+      set(options, LC_LP_PREFIX_STR ":preprocess_decode_time", preprocess_decode_ms);
+      set(options, LC_LP_PREFIX_STR ":decode_time", decode_ms);
       return options;
   }
 
   std::shared_ptr<libpressio_compressor_plugin> clone() override
   {
-    return compat::make_unique<lc_compressor_plugin>(*this);
+    return compat::make_unique<LC_CONCAT(LC_PREFIX,_compressor_plugin)>(*this);
   }
 
 private:
@@ -345,11 +444,10 @@ private:
   compat::optional<uint32_t> n_threads;
 };
 
-static pressio_register compressor_many_fields_plugin(compressor_plugins(), "lc", []() {
-  return compat::make_unique<lc_compressor_plugin>();
+static pressio_register LC_CONCAT(LC_PREFIX,_compressor_many_fields_plugin)(compressor_plugins(), LC_LP_PREFIX_STR, []() {
+  return compat::make_unique<LC_CONCAT(LC_PREFIX,_compressor_plugin)>();
 });
 
 } }
 
-extern "C" void libpressio_register_lc() {
-}
+extern "C" void LC_CONCAT(libpressio_register_,LC_PREFIX)() { }

@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+
 /**
  * no-op function to call to ensure that the library is not removed during linking
  */

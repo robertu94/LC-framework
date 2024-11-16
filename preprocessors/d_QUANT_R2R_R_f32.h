@@ -77,7 +77,9 @@ static __global__ void d_QUANT_R2R_R_f32_kernel(const int len, byte* const __res
 
     if ((bin >= maxbin) || (bin <= -maxbin) || (fabsf(orig_f) >= threshold) || (recon < orig_f - adj_eb) || (recon > orig_f + adj_eb) || (fabsf(orig_f - recon) > adj_eb) || (orig_f != orig_f)) {  // last check is to handle NaNs
       data_f[idx] = orig_f;
+#ifdef DEBUG
       assert(((orig_data_i[idx] >> mantissabits) & 0xff) != 0);
+#endif
     } else {
       data_i[idx] = (bin << 1) ^ (bin >> 31);  // TCMS encoding, 'sign' and 'exponent' fields are zero
     }
